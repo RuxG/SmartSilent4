@@ -8,13 +8,18 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import com.example.smartsilent.R;
 import com.google.android.material.button.MaterialButton;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MakeTimeZone extends AppCompatActivity implements View.OnClickListener {
 
@@ -22,23 +27,55 @@ public class MakeTimeZone extends AppCompatActivity implements View.OnClickListe
     TimeZoneData data;
 
     // butonul zilei apasat
-    private int selectedDay;
+    private int selectedDay = 0;
+    private boolean isSelectedAM = true;
+    private int previousSelectedDayId = 0;
 
-    private List<MaterialButton> buttons;
-    private static final int[] BUTTON_IDS = {
+    private List<MaterialButton> buttons_days;
+    private MaterialButton selectAM;
+    private MaterialButton selectPM;
+    private MaterialButton confirmButton;
+
+    private List<MaterialButton> buttons_hours;
+
+    private static final Set<Integer> BUTTON_DAY_IDS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
             R.id.button_day_1,
             R.id.button_day_2,
             R.id.button_day_3,
             R.id.button_day_4,
             R.id.button_day_5,
             R.id.button_day_6,
-            R.id.button_day_7,
-    };
+            R.id.button_day_7
+            )));
+
+    private static final Set<Integer> BUTTON_HOUR_IDS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    R.id.button_hour_1,
+                    R.id.button_hour_2,
+                    R.id.button_hour_3,
+                    R.id.button_hour_4,
+                    R.id.button_hour_5,
+                    R.id.button_hour_6,
+                    R.id.button_hour_7,
+                    R.id.button_hour_8,
+                    R.id.button_hour_9,
+                    R.id.button_hour_10,
+                    R.id.button_hour_11,
+                    R.id.button_hour_12
+            )));
 
     // pentru a stii indexul zilei pe baza id-ului butonului de zi
-    private static final HashMap<Integer, Integer> BUTTON_ID_INDEX = new HashMap<Integer, Integer>(){{
+    private static final HashMap<Integer, Integer> ID_TO_DAY_INDEX = new HashMap<Integer, Integer>(){{
         put(R.id.button_day_1, 0);  put(R.id.button_day_2, 1);  put(R.id.button_day_3, 2);  put(R.id.button_day_4, 3);
                 put(R.id.button_day_5, 4);  put(R.id.button_day_6, 5);  put(R.id.button_day_7, 6);
+    }};
+
+    private static final HashMap<Integer, Integer> ID_TO_HOUR_INDEX = new HashMap<Integer, Integer>(){{
+
+        put(R.id.button_hour_1, 0);  put(R.id.button_hour_2, 1);  put(R.id.button_hour_3, 2);  put(R.id.button_hour_4, 3);
+        put(R.id.button_hour_5, 4);  put(R.id.button_hour_6, 5);  put(R.id.button_hour_7, 6); put(R.id.button_hour_8, 7);
+        put(R.id.button_hour_9, 8); put(R.id.button_hour_10, 9); put(R.id.button_hour_11, 10); put(R.id.button_hour_12, 11);
     }};
 
     private static final int WEEK_DAYS_NUM = 7;
@@ -48,54 +85,116 @@ public class MakeTimeZone extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.make_time_zone);
-         buttons = new ArrayList<>(BUTTON_IDS.length);
-        for(int id : BUTTON_IDS) {
+        buttons_days = new ArrayList<>(BUTTON_DAY_IDS.size());
+        buttons_hours = new ArrayList<>(BUTTON_HOUR_IDS.size());
+
+        for(int id : BUTTON_DAY_IDS) {
             MaterialButton button = findViewById(id);
             button.setOnClickListener(this);
-            buttons.add(button);
+            button.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone));
+            buttons_days.add(button);
         }
 
-        TimeZoneData data = this.getIntent().getParcelableExtra("time_zone");
+        for(int id : BUTTON_HOUR_IDS) {
+            MaterialButton button = findViewById(id);
+            button.setOnClickListener(this);
+            button.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone));
+            buttons_hours.add(button);
+        }
 
+        selectAM = findViewById(R.id.button_select_am);
+        selectPM = findViewById(R.id.button_select_pm);
+        selectAM.setOnClickListener(this);
+        selectPM.setOnClickListener(this);
+        selectAM.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone_selected));
+        buttons_days.get(0).setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone_selected));
+
+        confirmButton = findViewById(R.id.button_confirm);
+        confirmButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent returnIntent = new Intent();
+                returnIntent.putExtra("time_zone", data);
+                setResult(Activity.RESULT_OK, returnIntent);
+                finish();
+            }
+        });
+
+        data = this.getIntent().getParcelableExtra("time_zone");
+
+        restoreButtonsValues();
     }
-
 
     @Override
     public void onClick(View view) {
-        MaterialButton b = (MaterialButton) view;
-        String buttonText = b.getText().toString();
+        MaterialButton button = (MaterialButton) view;
 
-        Log.e("TAG", "Value " + buttonText);
+        if (BUTTON_DAY_IDS.contains(view.getId())) {
+            selectedDay = ID_TO_DAY_INDEX.get(button.getId());
 
-        /*
+            restoreButtonsValues();
 
-        // daca s-a apasat un buton corespunzator unei zile, marcam ziua selectata
-        // Putem sa punem zi default "Sunday", iar cand apasa pe altceva se schimba.
-        // Idem putem pune by default "AM".
-        // si eventual coloram butonul zilei
-        Integer index = BUTTON_ID_INDEX.get(b.getId());
-        if(index != null) {
-            selectedDay = index;
+            if (button.getBackgroundTintList() == ContextCompat.getColorStateList(this, R.color.button_time_zone)) {
+                buttons_days.get(previousSelectedDayId)
+                        .setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone));
+
+                previousSelectedDayId = ID_TO_DAY_INDEX.get(button.getId());
+
+                button.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone_selected));
+            } else {
+                button.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone));
+            }
+
+        } else if (BUTTON_HOUR_IDS.contains(view.getId())) {
+            int selectedHour = ID_TO_HOUR_INDEX.get(button.getId());
+            if (!isSelectedAM) {
+                selectedHour += 12;
+            }
+
+            boolean is_selected = data.getData().get(selectedDay)[selectedHour];
+            data.getData().get(selectedDay)[selectedHour] = !is_selected;
+
+            if (button.getBackgroundTintList() == ContextCompat.getColorStateList(this, R.color.button_time_zone)) {
+                button.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone_selected));
+            } else {
+                button.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone));
+            }
+        } else if ((view.getId() == R.id.button_select_am) || (view.getId() == R.id.button_select_pm)) {
+
+            if (!isSelectedAM) {
+                selectAM.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone_selected));
+                selectPM.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone));
+            } else {
+                selectAM.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone));
+                selectPM.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone_selected));
+            }
+            isSelectedAM = !isSelectedAM;
+
+            restoreButtonsValues();
         }
 
-        // DACA APASA PE UN BUTON DE ORA
-        // iei tu valoarea orei
-        int valoare_ora = 0;
+    }
 
-        // transformi din 11PM in 23 PM
-        //if(PM) {
-            valoare_ora += 12;
-      //  }
-            */
+    private void restoreButtonsValues() {
+        for (MaterialButton materialButton : buttons_hours) {
+            int indexHour = ID_TO_HOUR_INDEX.get(materialButton.getId());
+            if (!isSelectedAM) {
+                indexHour += 12;
+            }
+            if (data.getData().get(selectedDay)[indexHour]) {
+                materialButton.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone_selected));
+            } else {
+                materialButton.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.button_time_zone));
+            }
+        }
+    }
 
-        // facem toggle la valoarea de selectie a orei
-        int hour = BUTTON_ID_INDEX.get(b.getId());
-        boolean is_selected = data.getData().get(selectedDay)[hour];
-        data.getData().get(selectedDay)[hour] = !is_selected;
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
 
-        // DACA UNDEVA PUI UN BUTON DE SAVE, SI APASA PE EL
         Intent returnIntent = new Intent();
-        returnIntent.putExtra("contacts", data);
+        returnIntent.putExtra("time_zone", data);
         setResult(Activity.RESULT_OK,returnIntent);
         finish();
     }
